@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Exec=lxterminal -e 'bash -c "~/Desktop/auto_run.sh"'
+Terminal=true
