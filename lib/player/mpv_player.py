@@ -29,6 +29,19 @@ class MPVPlayer:
     def add_listeners(self):
         @self.player.property_observer("playlist-pos")
         def playlist_changed(name, value):
+            if(name == "playlist-pos" and value > -1):
+                print("Current playlist position changed:", value)
+                current_item = self.schedule[value] if value < len(self.schedule) else None
+                print("Current schedule item:", current_item)
+                hasBlackBars = current_item.get('hasBlackBars') if current_item else False
+                print("Has black bars:", hasBlackBars)
+                if(hasBlackBars):
+                    self.player.command("set_property", "video-aspect-override", 4 / 3)
+                    self.player.command("set_property", "video-scale-x", "1.333333333")
+                else:
+                    self.player.command("set_property", "video-aspect-override", -1)
+                    self.player.command("set_property", "video-scale-x", "1.0")
+
             print("Now playing:", value)
 
         @self.player.event_callback("shutdown")
@@ -42,26 +55,44 @@ class MPVPlayer:
 
     def load_schedule(self, schedule_data):
         currentTime = datetime.now()
-        daily_start_time = datetime.now().replace(hour=self.start_time.hour, minute=self.start_time.minute, second=self.start_time.second)
-        ff_time = (currentTime - daily_start_time).total_seconds() if currentTime > daily_start_time else 0
+        #daily_start_time = datetime.now().replace(hour=self.start_time.hour, minute=self.start_time.minute, second=self.start_time.second)
+        daily_start_time = datetime.now().replace(hour=21, minute=51, second=0)
+        ff_time = (currentTime - daily_start_time).total_seconds()
 
         print(f"currentTime: {currentTime}")
         print(f"daily_start_time: {daily_start_time}")
         print(f"ff_time: {ff_time}")
 
         files_loaded = 0
+
+        if ff_time < 0:
+            self.player.command(
+                "loadfile", 
+                f"{self.standby_url}",
+                "replace",
+                -1,
+                {
+                    "image-display-duration": f"{ff_time * -1}"
+                }
+            )
+            
+            print(f"Fast-forwarded time applied: {ff_time * -1}")
+            ff_time = 0
+            files_loaded += 1
+
+        schedule_duration = 0;
         
         for item in schedule_data:
             startTime = item.get('startTime') /1000 if item.get('startTime') else 0
             endTime = item.get('stopTime') / 1000 if item.get('stopTime') else 0
 
             duration = endTime - startTime
+            schedule_duration += duration
 
             if(ff_time > duration):
                 ff_time -= duration
                 continue
 
-            # options = []
             if(ff_time > 0):
                 startTime = startTime + ff_time
                 # print(f"Adjusted start time: {startTime}, end time: {endTime}, duration: {duration}")
@@ -79,14 +110,14 @@ class MPVPlayer:
             except Exception as e:
                 print(f"Error scheduling item {files_loaded}: {e}")
 
-        if files_loaded == 0:
+        if files_loaded == 0 or schedule_duration < 86400:
             self.player.command(
                 "loadfile", 
                 f"{self.standby_url}",
                 "replace",
                 -1,
                 {
-                "image-display-duration": "86400" #A full day
+                    "image-display-duration": "86400" #A full day
                 }
                 )
 

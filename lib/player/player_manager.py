@@ -86,10 +86,7 @@ class PlayerManager:
                         player['player'].shutdown()
                         self.players.remove(player['player'])
                     if player['action'] == 'new':
-
                         self.players.append(self.create_player(player['schedule']))
-                        # Handle new player creation if needed
-                        
 
                 self.schedule_data = currentData
                 return
@@ -98,13 +95,15 @@ class PlayerManager:
             print("polling for player status updates")
             #Check players' status and update schedule if needed
             for player in self.players:
-                if not player.isActive():
+                if player is  not None and not player.isActive():
                     print(f"Player is not active, resetting Player")
                     player.reset_player()
 
     def get_player_status(self):
         results = {}
         for i, player in enumerate(self.players):
+            if player is None:
+                continue
             status = 'active' if player.isActive() else 'inactive'
             results[f'player_{i}'] = status
             print(f"Player status: {status}")
@@ -112,7 +111,8 @@ class PlayerManager:
 
     def kill_players(self):
         for player in self.players:
-            player.shutdown()
+            if(player):
+                player.shutdown()
         self.players.clear()
 
     def start_player_by_id(self, station_id: int):
@@ -122,25 +122,30 @@ class PlayerManager:
 
     def start_players(self):
         for player in self.players:
-            player.play()
+            if(player):
+                player.play()
 
     def stop_players(self):
         for player in self.players:
-            player.stop_player()
+            if(player):
+                player.stop_player()
 
     def stop_player_by_id(self, station_id: int):
         for player in self.players:
             if player.device_info['stationNumber'] == station_id:
-                player.stop_player()
+                if(player):
+                    player.stop_player()
 
     def restart_players(self):
         for player in self.players:
-            player.reset_player()
+            if(player):
+                player.reset_player()
 
     def restart_player_by_id(self, station_id: int):
         for player in self.players:
             if player.device_info['stationNumber'] == station_id:
-                player.reset_player()
+                if(player):
+                    player.reset_player()
 
     def get_drone_data_from_server(self, id):
         response = requests.get(TARGET_URL + SCHEDULE_PATH + str(id))
@@ -179,7 +184,8 @@ class PlayerManager:
 
         currentDevice = next((u for u in self.device_info if u['stationNumber'] == stationNumber), None)
 
-        return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleJson.get('items') if scheduleJson else None, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)
+        if(currentDevice != None):
+            return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleJson.get('items') if scheduleJson else None, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)
 
     def players_to_update(self, newSchedule):
         results = []
