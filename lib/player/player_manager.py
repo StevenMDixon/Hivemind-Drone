@@ -148,7 +148,9 @@ class PlayerManager:
                     player.reset_player()
 
     def get_drone_data_from_server(self, id):
-        response = requests.get(TARGET_URL + SCHEDULE_PATH + str(id))
+        query = f'?date={datetime.now().strftime("%Y-%m-%d")}'
+    
+        response = requests.get(TARGET_URL + SCHEDULE_PATH + str(id) + query)
         if response.status_code == 200:
             return response.json()
         return None

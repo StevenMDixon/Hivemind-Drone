@@ -1,2 +1,3 @@
 python-mpv
 Flask
+Pillow

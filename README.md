@@ -18,6 +18,8 @@ This program is meant to serve as the media player portion of Hivemind, essentia
 6. update `settings.json` (see the settings.json section)
 7. run `python main.py`
 
+* Note: If you want to play youtube videos via mpv, you will need to install yt-dlp: `sudo apt install mpv yt-dlp`
+
 ### .env options
     ```
     HostName=DESKTOP-BNGTCFF
