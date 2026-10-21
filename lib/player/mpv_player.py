@@ -57,7 +57,7 @@ class MPVPlayer:
             self.bug_display = False
 
     def handle_rating(self, rating):
-        if(rating != ""):
+        if(rating != "" and rating is not None):
             relative_path = f"./resources/rating_overlays/png/{rating.replace('_', '-')} icon.png"
             print(relative_path)
             overlay_data = self.get_overlay_data(relative_path)
@@ -82,11 +82,11 @@ class MPVPlayer:
                 hasBlackBars = current_item.get('hasBlackBars') if current_item else False
                 self.handle_aspect_ratio(hasBlackBars)
 
-                hasRating = current_item.get('rating') if current_item else False
-                self.handle_rating(hasRating)
+                rating = current_item.get('rating') if current_item else ""
+                self.handle_rating(rating)
 
-                hasBug = current_item.get('hasBug') if current_item else False
-                self.handle_bug(hasBug)
+                bug = current_item.get('hasBug') if current_item else ""
+                self.handle_bug(bug)
 
             print("Now playing:", value)
 
@@ -227,7 +227,7 @@ class MPVPlayer:
     def shutdown(self):
         print("Cleaning up player...")
         self.player.command("quit")
-        self.process.terminate()
+
         self.process.wait()
 
         if os.path.exists(self.socket):

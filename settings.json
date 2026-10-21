@@ -4,6 +4,11 @@
             "stationNumber": 1,
             "screen": 0,
             "audioDevice": "wasapi/{6edc04f6-f8ba-4066-b28f-22036b0ca9f3}"
+        },
+        {
+            "stationNumber": 2,
+            "screen": 1,
+            "audioDevice": "wasapi/{6edc04f6-f8ba-4066-b28f-22036b0ca9f3}"
         }
     ]
 }

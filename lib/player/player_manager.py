@@ -34,7 +34,7 @@ class PlayerManager:
         self.drone_info = self.get_drone_info_from_server(HOST_NAME)
         self.schedule_data = self.get_drone_data_from_server(self.drone_info['id']) or []
 
-        self.create_players_async(self.schedule_data)
+        self.create_players_async(self.map_device_to_schedule())
 
     def start(self):
         self.stop_event.clear()
@@ -45,6 +45,30 @@ class PlayerManager:
         )
 
         self.thread.start()
+
+    def map_device_to_schedule(self):
+        schedule_map = {}
+
+        for schedule in self.schedule_data or []:
+            station_number = schedule['stationNumber']
+            if station_number in schedule:
+                schedule_map[station_number] = schedule
+
+        mapping = []
+        for device in self.device_info:
+            if device['stationNumber'] in schedule_map:
+                mapping.append({
+                    'device': device,
+                    'schedule': schedule_map[device['stationNumber']]
+                })
+            else:
+                mapping.append({
+                    'device': device,
+                    'schedule': None
+                })
+            
+        return mapping
+        
 
     def run(self):
         while not self.stop_event.is_set():
@@ -149,10 +173,13 @@ class PlayerManager:
 
     def get_drone_data_from_server(self, id):
         query = f'?date={datetime.now().strftime("%Y-%m-%d")}'
-    
-        response = requests.get(TARGET_URL + SCHEDULE_PATH + str(id) + query)
-        if response.status_code == 200:
-            return response.json()
+        
+        try:
+            response = requests.get(TARGET_URL + SCHEDULE_PATH + str(id) + query)
+            if response.status_code == 200:
+                return response.json()
+        except requests.RequestException as e:
+            print("Error fetching drone data:", e)
         return None
 
     def get_drone_info_from_server(self, hostname):
@@ -165,9 +192,12 @@ class PlayerManager:
         print("Target URL for registration:", TARGET_URL + REGISTER_PATH)
         print(payload)
 
-        response = requests.post(TARGET_URL + REGISTER_PATH, json=payload)
-        if response.status_code == 200:
-            return response.json()
+        try:
+            response = requests.post(TARGET_URL + REGISTER_PATH, json=payload)
+            if response.status_code == 200:
+                return response.json()
+        except requests.RequestException as e:
+            print("Error registering drone:", e)
         return {'id': None}
 
     def create_players_async(self, scheduleData):
@@ -175,19 +205,29 @@ class PlayerManager:
             self.players = list(executor.map(lambda item: self.create_player(item), scheduleData))
 
     def create_player(self, item):
-        stationNumber = int(item.get('stationNumber'))
-        scheduleJson = json.loads(item.get('scheduleJson')) if item.get('scheduleJson') else None
-        startTime = datetime.strptime(scheduleJson.get('startTime'), "%H:%M:%S").time() if scheduleJson.get('startTime') else datetime.now().time()
+        print(item)
+        device = item['device']
+        schedule = item['schedule'] if 'schedule' in item else None
+
+        stationNumber = int(device.get('stationNumber'))
+
+        scheduleJson = json.loads(schedule) if schedule else None
+
+        startTime = datetime.now().time()
+
+        if scheduleJson is not None:
+            startTime = datetime.strptime(scheduleJson.get('startTime'), "%H:%M:%S").time() if scheduleJson.get('startTime') else datetime.now().time()
+
 
         mpv_socket = f"/tmp/channel-tv{stationNumber}-mpv.sock"
 
         if os.path.exists(mpv_socket):
             os.remove(mpv_socket)
 
-        currentDevice = next((u for u in self.device_info if u['stationNumber'] == stationNumber), None)
+        scheduleItems = scheduleJson.get('items') if scheduleJson else []
 
-        if(currentDevice != None):
-            return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleJson.get('items') if scheduleJson else None, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)
+        currentDevice = device
+        return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleItems, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)
 
     def players_to_update(self, newSchedule):
         results = []
