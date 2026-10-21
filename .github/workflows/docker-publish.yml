@@ -43,7 +43,7 @@ jobs:
             type=ref,event=tag
             type=sha,format=short
 
-      # Build first without pushing so a broken Dockerfile never reaches GHCR.
+      # Build and load locally first so a broken Dockerfile never reaches GHCR.
       - name: Build image
         uses: docker/build-push-action@v6
         with:
@@ -64,14 +64,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Reuses the layers from the previous step, so this only uploads the image.
+      # Push exactly the image that was built and loaded above.
       - name: Push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: ${{ env.PLATFORMS }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
+        run: docker push --all-tags "${IMAGE_NAME}"
