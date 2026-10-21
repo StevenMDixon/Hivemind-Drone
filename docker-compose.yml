@@ -1,0 +1,35 @@
+# Docker Compose deployment for Hivemind Drone (TrueNAS SCALE 25.04+ "Install via YAML").
+# Adjust the host paths, Hivemind URL and group IDs below before deploying.
+services:
+  hivemind-drone:
+    image: ghcr.io/stevenmdixon/hivemind-drone:latest
+    build: .
+    container_name: hivemind-drone
+    # Hivemind identifies drones by HostName; keep it stable.
+    hostname: hivemind-drone
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DISPLAY_BACKEND: sway          # sway (two displays on one GPU) | drm (one display per GPU)
+      HostName: hivemind-drone
+      HivemindUrl: http://192.168.1.10:32768
+      MountedPath: /media/
+      PollingDelay: "15"
+      TZ: America/New_York           # schedules use local time
+      # WLR_DRM_DEVICES: /dev/dri/card0   # pin sway to one GPU if the host has several
+    volumes:
+      - /mnt/tank/apps/hivemind-drone/config:/config
+      - /mnt/tank/media:/media:ro
+    devices:
+      - /dev/dri:/dev/dri            # KMS display output + VA-API decoding
+      - /dev/snd:/dev/snd            # ALSA (HDMI/analog audio)
+    group_add:
+      # Numeric host GIDs owning /dev/dri/* and /dev/snd/* (check with: stat -c '%g %n' /dev/dri/* /dev/snd/*)
+      - "44"    # video
+      - "107"   # render (varies per host)
+      - "29"    # audio
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

@@ -55,6 +55,97 @@ It is possible that the machine your are deploying this to has multiple displays
 `StationNumber` Will match a Station assigned to this drone in HiveMind
 `screen` is the index of your displays
 `audioDevice` is the name of the audio device you want to target for playback use `mpv --audio-device=help` to get a list of these
+`mpvArgs` (optional) is a list of extra command line arguments passed to that station's mpv process, e.g. `["--title=hivemind-station-1", "--fs-screen-name=HDMI-A-1"]`
+
+## Running in Docker (TrueNAS SCALE)
+
+The repository ships a `Dockerfile`, a `docker-compose.yml` and container defaults under `docker/` so a drone can run as a container on a headless Linux host such as TrueNAS SCALE 25.04, driving physical displays connected to the host GPU. The Windows / Raspberry Pi workflow above is unchanged.
+
+### How the container works
+
+* Entry point: `tini` -> `docker/entrypoint.sh` -> `python main.py` (the same entry point as a normal install; Flask listens on port `5000`).
+* There is no X server. Video goes straight to the GPU through Linux DRM/KMS; Windows `wasapi/...` audio devices do not exist on Linux, audio goes through ALSA (`alsa/...` devices).
+* `DISPLAY_BACKEND` selects how displays are driven:
+  * `sway` (default) - the entrypoint starts the [sway](https://swaywm.org/) Wayland compositor as a kiosk on the DRM device, and every mpv instance is a Wayland client. sway's config moves each station window (matched by `--title`) fullscreen onto its own output. **Use this for two displays on one GPU.** Only one process can be DRM master of a GPU at a time, so two mpv instances cannot drive two connectors of the same card directly.
+  * `drm` - each mpv instance drives a connector directly (`--gpu-context=drm --drm-device=... --drm-connector=...`). Only works with **one display per GPU card** (e.g. iGPU + discrete GPU). See `docker/defaults/settings.drm.example.json`.
+  * `none` - just run the application (for debugging).
+* The container runs as the unprivileged user `568:568` (TrueNAS `apps`). It does **not** need `privileged: true`; it only needs the `/dev/dri` and `/dev/snd` devices and membership in the host groups that own them.
+
+### Volumes and configuration
+
+| Container path | Purpose |
+| --- | --- |
+| `/config` | Persistent configuration. Must be writable by UID 568. Seeded on first start if files are missing. |
+| `/config/settings.json` | Station definitions (same format as above, plus optional `mpvArgs`). |
+| `/config/.env` | Same keys as the `.env` above. Values from the compose `environment:` section take precedence. |
+| `/config/mpv/mpv.conf` | Global mpv options (`vo`, `hwdec`, `ao`, ...). `MPV_HOME=/config/mpv`. |
+| `/config/sway/config` | Output layout and station-to-output mapping for `DISPLAY_BACKEND=sway`. |
+| `/media` | Your media library. Set `MountedPath=/media/` so schedule paths resolve inside the container. |
+
+Default container `settings.json` (two stations, two HDMI outputs on one GPU):
+``` JSON
+{
+    "devices": [
+        { "stationNumber": 1, "screen": 0, "audioDevice": "alsa/hdmi:CARD=PCH,DEV=0",
+          "mpvArgs": ["--title=hivemind-station-1", "--fs-screen-name=HDMI-A-1"] },
+        { "stationNumber": 2, "screen": 1, "audioDevice": "alsa/hdmi:CARD=PCH,DEV=1",
+          "mpvArgs": ["--title=hivemind-station-2", "--fs-screen-name=HDMI-A-2"] }
+    ]
+}
+```
+The matching `/config/sway/config` pins workspace 1 to `HDMI-A-1` and workspace 2 to `HDMI-A-2` and moves `hivemind-station-N` windows there fullscreen. Change the connector names to match your hardware.
+
+Environment variables understood by the container:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `DISPLAY_BACKEND` | `sway` | `sway`, `drm` or `none` |
+| `HostName`, `HivemindUrl`, `MountedPath`, `StandbyUrl`, `PollingDelay` | from `/config/.env` | Application settings (see `.env options`) |
+| `TZ` | `Etc/UTC` | Time zone; schedules use local time |
+| `WLR_DRM_DEVICES` | all GPUs | Restrict sway to a GPU, e.g. `/dev/dri/card0` |
+| `WLR_RENDERER` | auto | Set to `pixman` for GPUs without OpenGL ES support |
+
+### Build and publish
+
+```bash
+# Build (TrueNAS SCALE is x86_64)
+docker build --platform linux/amd64 -t ghcr.io/stevenmdixon/hivemind-drone:latest .
+
+# Publish to GitHub Container Registry (token needs the write:packages scope)
+echo "$GHCR_TOKEN" | docker login ghcr.io -u StevenMDixon --password-stdin
+docker push ghcr.io/stevenmdixon/hivemind-drone:latest
+```
+Make the package public in GitHub (Packages -> Package settings) or add registry credentials in TrueNAS (Apps -> Configuration -> Manage Container Image Registries).
+
+### Deploy on TrueNAS SCALE 25.04
+
+1. **Find the display and audio hardware** in the TrueNAS shell:
+   ```bash
+   ls -l /dev/dri /dev/snd
+   stat -c '%g %n' /dev/dri/* /dev/snd/*                                   # GIDs for group_add
+   for p in /sys/class/drm/card*-*; do echo "$(basename $p) $(cat $p/status)"; done   # connector names
+   cat /proc/asound/cards                                                   # ALSA card names
+   ```
+   Make sure the GPU is not isolated for VMs (System -> Advanced -> Isolated GPU Devices).
+2. **Create datasets**, e.g. `tank/apps/hivemind-drone/config`, and give UID/GID 568 (`apps`) write access to the config dataset and read access to the media dataset.
+3. **Install the app**: Apps -> Discover Apps -> ⋮ -> *Install via YAML*, paste `docker-compose.yml` (remove the `build:` line), and adjust `HivemindUrl`, `HostName`, `TZ`, the host paths and the `group_add` GIDs from step 1.
+4. **First start** seeds `/config`. Edit `/config/settings.json` and `/config/sway/config` with your connector names (e.g. `HDMI-A-1`, `DP-1`) and audio devices, then restart the app.
+5. **List audio devices** from inside the running container and copy the right `alsa/...` names into `audioDevice`:
+   ```bash
+   docker exec hivemind-drone mpv --audio-device=help
+   docker exec hivemind-drone aplay -L
+   ```
+6. **Check status**: `docker logs hivemind-drone` and `http://<truenas-ip>:5000/player/status`.
+
+You can also deploy from the TrueNAS shell with `docker compose up -d` in a directory containing `docker-compose.yml`.
+
+### Known limitations
+
+* Physical display output has only been validated against a virtual KMS device and sway's headless backend; connector names, modes, hardware decoding and HDMI audio must be verified on the real host.
+* NVIDIA GPUs need the proprietary driver with `nvidia-drm.modeset=1` and are not covered by this image (Mesa only). Intel and AMD GPUs are recommended.
+* With `DISPLAY_BACKEND=drm`, a second mpv on the same GPU fails with `Failed to acquire DRM master: Permission denied`; use `sway` instead.
+* HDMI audio device numbers (`DEV=`) do not always follow connector order; test each output.
+* Only one process can be DRM master of a GPU; if anything else on the host holds it, sway cannot start.
 
 ## Setting up a raspberry pi
 
