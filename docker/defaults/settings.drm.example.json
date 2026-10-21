@@ -1,0 +1,26 @@
+{
+    "devices": [
+        {
+            "stationNumber": 1,
+            "screen": 0,
+            "audioDevice": "alsa/hdmi:CARD=PCH,DEV=0",
+            "mpvArgs": [
+                "--vo=gpu",
+                "--gpu-context=drm",
+                "--drm-device=/dev/dri/card0",
+                "--drm-connector=HDMI-A-1"
+            ]
+        },
+        {
+            "stationNumber": 2,
+            "screen": 1,
+            "audioDevice": "alsa/hdmi:CARD=Generic,DEV=0",
+            "mpvArgs": [
+                "--vo=gpu",
+                "--gpu-context=drm",
+                "--drm-device=/dev/dri/card1",
+                "--drm-connector=HDMI-A-1"
+            ]
+        }
+    ]
+}

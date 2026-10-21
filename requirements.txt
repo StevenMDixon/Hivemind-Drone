@@ -1,3 +1,6 @@
 python-mpv
 Flask
 Pillow
+python-dotenv
+requests
+python-mpv-jsonipc

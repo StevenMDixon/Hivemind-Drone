@@ -1,0 +1,22 @@
+{
+    "devices": [
+        {
+            "stationNumber": 1,
+            "screen": 0,
+            "audioDevice": "alsa/hdmi:CARD=PCH,DEV=0",
+            "mpvArgs": [
+                "--title=hivemind-station-1",
+                "--fs-screen-name=HDMI-A-1"
+            ]
+        },
+        {
+            "stationNumber": 2,
+            "screen": 1,
+            "audioDevice": "alsa/hdmi:CARD=PCH,DEV=1",
+            "mpvArgs": [
+                "--title=hivemind-station-2",
+                "--fs-screen-name=HDMI-A-2"
+            ]
+        }
+    ]
+}

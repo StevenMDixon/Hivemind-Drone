@@ -1,12 +1,15 @@
 from threading import Timer
 import subprocess
 import os
+import time
 
 from urllib.parse import urljoin
 from pathlib import Path
 from python_mpv_jsonipc import MPV
 from datetime import datetime
 from PIL import Image
+
+MPV_SOCKET_TIMEOUT_SECONDS = 10
 
 class MPVPlayer:
 
@@ -186,8 +189,18 @@ class MPVPlayer:
                         f"--af={loudnorm_params}", 
                         f"--audio-device={self.device_info['audioDevice']}",
                         f"--screen={self.device_info['screen']}", 
+                        *self.device_info.get('mpvArgs', []),
                     ])
-        
+
+        # On Windows python_mpv_jsonipc retries opening the named pipe itself;
+        # on Linux it connects once, so wait for mpv to create the IPC socket.
+        if os.name != 'nt':
+            deadline = time.monotonic() + MPV_SOCKET_TIMEOUT_SECONDS
+            while not os.path.exists(self.socket) and self.process.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.1)
+            if not os.path.exists(self.socket):
+                print(f"mpv IPC socket {self.socket} not available (mpv exit code: {self.process.poll()})")
+
         self.player = MPV(start_mpv=False, ipc_socket=self.socket)
 
     def reset_player(self):
