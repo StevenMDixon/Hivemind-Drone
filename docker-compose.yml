@@ -12,8 +12,9 @@ services:
       - "5000:5000"
     environment:
       DISPLAY_BACKEND: sway          # sway (two displays on one GPU) | drm (one display per GPU)
+      # These override /config/.env. Replace the placeholders for your network.
       HostName: hivemind-drone
-      HivemindUrl: http://192.168.1.10:32768
+      HivemindUrl: http://192.168.1.10:32768   # <-- address of your Hivemind instance
       MountedPath: /media/
       PollingDelay: "15"
       TZ: America/New_York           # schedules use local time

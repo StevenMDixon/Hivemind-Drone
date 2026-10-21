@@ -44,6 +44,17 @@ case "$DISPLAY_BACKEND" in
         export WLR_LIBINPUT_NO_DEVICES=1
         SWAY_CONFIG="${SWAY_CONFIG:-$CONFIG_DIR/sway/config}"
 
+        SWAY_PID=""
+        APP_PID=""
+        shutdown() {
+            local pid
+            for pid in $APP_PID $SWAY_PID; do
+                kill -TERM "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
+            done
+        }
+        trap 'shutdown; exit 143' TERM INT
+
         log "Starting sway (WLR_BACKENDS=$WLR_BACKENDS, config=$SWAY_CONFIG)"
         sway --config "$SWAY_CONFIG" &
         SWAY_PID=$!
@@ -66,7 +77,7 @@ case "$DISPLAY_BACKEND" in
 
         if [ -z "$WAYLAND_DISPLAY" ]; then
             log "ERROR: sway did not create a Wayland socket within 20s."
-            kill "$SWAY_PID" 2>/dev/null || true
+            shutdown
             exit 1
         fi
         export WAYLAND_DISPLAY
@@ -75,14 +86,6 @@ case "$DISPLAY_BACKEND" in
         log "Starting: $*"
         "$@" &
         APP_PID=$!
-
-        shutdown() {
-            kill -TERM "$APP_PID" 2>/dev/null || true
-            wait "$APP_PID" 2>/dev/null || true
-            kill -TERM "$SWAY_PID" 2>/dev/null || true
-            wait "$SWAY_PID" 2>/dev/null || true
-        }
-        trap 'shutdown; exit 143' TERM INT
 
         # Stop the container if either the application or the compositor exits.
         set +e

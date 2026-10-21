@@ -54,11 +54,13 @@ COPY . .
 
 # The application reads ./settings.json and ./.env relative to /app; point them
 # at the persistent /config volume. The entrypoint seeds /config on first start.
+# Code stays root-owned; only the /app directory itself is writable because the
+# player writes its overlay.raw scratch file to the working directory.
 RUN ln -sf /config/settings.json /app/settings.json \
     && ln -sf /config/.env /app/.env \
     && chmod 0755 /app/docker/entrypoint.sh \
     && mkdir -p /config /media \
-    && chown -R drone:drone /app /config
+    && chown drone:drone /app /config
 
 USER drone
 

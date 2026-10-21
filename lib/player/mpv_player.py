@@ -9,6 +9,8 @@ from python_mpv_jsonipc import MPV
 from datetime import datetime
 from PIL import Image
 
+MPV_SOCKET_TIMEOUT_SECONDS = 10
+
 class MPVPlayer:
 
     def __init__(self, mpv_socket, device_info, schedule_data, mountPath, startTime, StandbyUrl):
@@ -193,9 +195,11 @@ class MPVPlayer:
         # On Windows python_mpv_jsonipc retries opening the named pipe itself;
         # on Linux it connects once, so wait for mpv to create the IPC socket.
         if os.name != 'nt':
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + MPV_SOCKET_TIMEOUT_SECONDS
             while not os.path.exists(self.socket) and self.process.poll() is None and time.monotonic() < deadline:
                 time.sleep(0.1)
+            if not os.path.exists(self.socket):
+                print(f"mpv IPC socket {self.socket} not available (mpv exit code: {self.process.poll()})")
 
         self.player = MPV(start_mpv=False, ipc_socket=self.socket)
 
