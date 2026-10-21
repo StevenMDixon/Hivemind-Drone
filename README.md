@@ -105,7 +105,33 @@ Environment variables understood by the container:
 | `WLR_DRM_DEVICES` | all GPUs | Restrict sway to a GPU, e.g. `/dev/dri/card0` |
 | `WLR_RENDERER` | auto | Set to `pixman` for GPUs without OpenGL ES support |
 
-### Build and publish
+### Published image (GitHub Container Registry)
+
+The `Docker publish` workflow (`.github/workflows/docker-publish.yml`) builds the `Dockerfile` for `linux/amd64` and publishes it to `ghcr.io/stevenmdixon/hivemind-drone`:
+
+| Trigger | Tags pushed |
+| --- | --- |
+| Push to `main` | `latest`, `sha-<short commit>` |
+| Push of a `v*` tag (e.g. `v1.0.0`) | `v1.0.0`, `sha-<short commit>` |
+| Manual run (Actions -> Docker publish -> Run workflow) | `sha-<short commit>` (plus `latest` when run on `main`) |
+
+The image is only pushed if the build succeeds. To cut a release:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Pull the image:
+```bash
+docker pull ghcr.io/stevenmdixon/hivemind-drone:latest   # tracks main
+docker pull ghcr.io/stevenmdixon/hivemind-drone:v1.0.0   # pinned release
+```
+
+New GHCR packages are private by default. After the first successful run, either make the package public (GitHub profile -> Packages -> `hivemind-drone` -> Package settings -> Change visibility) or add a registry credential in TrueNAS (Apps -> Configuration -> Manage Container Image Registries, registry `ghcr.io`, your GitHub username and a personal access token with the `read:packages` scope).
+
+To deploy the published image, use `docker-compose.yml` as-is but delete the `build: .` line so TrueNAS pulls `image:` instead of building. Pin a release by changing `image:` to e.g. `ghcr.io/stevenmdixon/hivemind-drone:v1.0.0`. To update a deployment on `latest`, pull again and recreate the container (TrueNAS: Apps -> hivemind-drone -> Update / Pull Images; shell: `docker compose pull && docker compose up -d`).
+
+### Build and publish manually
 
 ```bash
 # Build (TrueNAS SCALE is x86_64)
