@@ -36,7 +36,6 @@ def create_player(item):
     if os.path.exists(mpv_socket):
         os.remove(mpv_socket)
 
-    print(scheduleItems[0])
     print(MOUNTED_PATH)
     currentDevice = device
     return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleItems, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)
