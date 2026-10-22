@@ -80,7 +80,7 @@ def detect_display_backend() -> str:
                 pass
 
     raise RuntimeError(
-        "No supported display backend detected. "
+        "No supported display backend detected."
         "Configure DISPLAY_BACKEND explicitly or check the display session."
     )
 

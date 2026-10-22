@@ -25,7 +25,7 @@ app.register_blueprint(create_player_blue_print(player))
 
 display_provider = DisplayProvider()
 app.register_blueprint(create_device_blue_print(display_provider))
-print(app.url_map)
+
 os.path.dirname(os.path.abspath(__file__))
 
 if __name__ == "__main__":

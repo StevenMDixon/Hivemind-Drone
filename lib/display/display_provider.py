@@ -15,7 +15,7 @@ class DisplayProvider:
                 from lib.display.providers.x11_provider import X11Provider
                 print("Using X11 display provider...")
                 provider = X11Provider()
-            case "wayland":
+            case "wayland" | "sway":
                 from lib.display.providers.sway_provider import SwayProvider
                 print("Using Sway display provider...")
                 provider = SwayProvider()
