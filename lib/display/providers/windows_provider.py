@@ -1,8 +1,9 @@
-import pymonctl
 
 from lib.display.providers.base_provider import BaseDisplayProvider
 
 class WindowsProvider(BaseDisplayProvider):
+    
+
     def discover_displays(self) -> list[dict]:
         displays = []
 
