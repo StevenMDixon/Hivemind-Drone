@@ -2,11 +2,9 @@ from dotenv import load_dotenv
 import os
 import requests
 import json
-from python_mpv_jsonipc import MPV
 import threading
 from datetime import datetime
-from lib.player.mpv_player import MPVPlayer
-from concurrent.futures import ThreadPoolExecutor
+from lib.player.player_factory import create_players_async, create_player
 
 load_dotenv()
 
@@ -14,8 +12,6 @@ HOST_NAME = os.getenv("HostName")
 TARGET_URL = os.getenv("HivemindUrl")
 SCHEDULE_PATH = "/api/drone/schedules/"
 REGISTER_PATH = "/api/drone/register"
-MOUNTED_PATH = os.getenv("MountedPath")
-STANDBY_URL = os.getenv("StandbyUrl")
 POLLING_DELAY = int(os.getenv("PollingDelay", 15))
 
 class PlayerManager:
@@ -34,7 +30,7 @@ class PlayerManager:
         self.drone_info = self.get_drone_info_from_server(HOST_NAME)
         self.schedule_data = self.get_drone_data_from_server(self.drone_info['id']) or []
 
-        self.create_players_async(self.map_device_to_schedule())
+        self.players = create_players_async(self.map_device_to_schedule())
 
     def start(self):
         self.stop_event.clear()
@@ -51,22 +47,22 @@ class PlayerManager:
 
         for schedule in self.schedule_data or []:
             station_number = schedule['stationNumber']
-            if station_number in schedule:
-                schedule_map[station_number] = schedule
+            schedule_map[int(station_number)] = schedule
 
         mapping = []
         for device in self.device_info:
-            if device['stationNumber'] in schedule_map:
+            station_number = device['stationNumber']
+            
+            if int(station_number) in schedule_map:
                 mapping.append({
                     'device': device,
-                    'schedule': schedule_map[device['stationNumber']]
+                    'schedule': schedule_map[int(station_number)]
                 })
             else:
                 mapping.append({
                     'device': device,
                     'schedule': None
                 })
-            
         return mapping
         
 
@@ -101,16 +97,15 @@ class PlayerManager:
 
                 # we only want to change the players if the schedule has actually been updated
                 players_to_update = self.players_to_update(currentData)
-                
                 for player in players_to_update:
                     if player['action'] == 'update':
                         print(f"updating")
-                        player['player'].load_schedule(player['schedule']['items'])
+                        player['player'].load_schedule(player['schedule'])
                     if player['action'] == 'remove':
                         player['player'].shutdown()
                         self.players.remove(player['player'])
                     if player['action'] == 'new':
-                        self.players.append(self.create_player(player['schedule']))
+                        self.players.append(create_player(player['stationData']))
 
                 self.schedule_data = currentData
                 return
@@ -190,7 +185,6 @@ class PlayerManager:
         print("Registering drone with hostname:", hostname)
         print("Payload for registration:", payload)
         print("Target URL for registration:", TARGET_URL + REGISTER_PATH)
-        print(payload)
 
         try:
             response = requests.post(TARGET_URL + REGISTER_PATH, json=payload)
@@ -200,56 +194,30 @@ class PlayerManager:
             print("Error registering drone:", e)
         return {'id': None}
 
-    def create_players_async(self, scheduleData):
-        with ThreadPoolExecutor(max_workers=len(scheduleData)) as executor:
-            self.players = list(executor.map(lambda item: self.create_player(item), scheduleData))
-
-    def create_player(self, item):
-        print(item)
-        device = item['device']
-        schedule = item['schedule'] if 'schedule' in item else None
-
-        stationNumber = int(device.get('stationNumber'))
-
-        scheduleJson = json.loads(schedule) if schedule else None
-
-        startTime = datetime.now().time()
-
-        if scheduleJson is not None:
-            startTime = datetime.strptime(scheduleJson.get('startTime'), "%H:%M:%S").time() if scheduleJson.get('startTime') else datetime.now().time()
-
-
-        mpv_socket = f"/tmp/channel-tv{stationNumber}-mpv.sock"
-
-        if os.path.exists(mpv_socket):
-            os.remove(mpv_socket)
-
-        scheduleItems = scheduleJson.get('items') if scheduleJson else []
-
-        currentDevice = device
-        return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleItems, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)
-
+    
     def players_to_update(self, newSchedule):
         results = []
 
         for player in self.players:
             currentStationNumber = player.device_info['stationNumber']
-            matchedPlayer = next((item for item in newSchedule if int(item.get('stationNumber')) == currentStationNumber), None)
+            matchedPlayer = next((item for item in newSchedule if int(item.get('stationNumber')) == int(currentStationNumber)), None)
+            print(matchedPlayer['stationNumber'])
             if matchedPlayer is None:
                 results.append({'player': player, 'action': 'remove', 'schedule': None})
 
         for item in newSchedule:
             currentStationNumber = int(item.get('stationNumber'))
+            print(currentStationNumber)
+            matchedPlayer = next((p for p in self.players if int(p.device_info['stationNumber']) == int(currentStationNumber)), None)
+            print(matchedPlayer)
             
-            matchedPlayer = next((p for p in self.players if p.device_info['stationNumber'] == currentStationNumber), None)
+            schedule_data = json.loads(item.get('scheduleJson'))
 
-            newSchedule = json.loads(item.get('scheduleJson'))
-
-            if matchedPlayer and matchedPlayer.schedule != newSchedule['items']:
-                results.append({'player': matchedPlayer, 'action': 'update', 'schedule': newSchedule})
+            if matchedPlayer and matchedPlayer.schedule != schedule_data['Items']:
+                results.append({'player': matchedPlayer, 'action': 'update', 'schedule': schedule_data['Items']})
 
             elif not matchedPlayer:
-                results.append({'player': None, 'action': 'new', 'schedule': item})
+                results.append({'player': None, 'action': 'new', 'schedule': None, 'stationData': item})
 
         return results
     

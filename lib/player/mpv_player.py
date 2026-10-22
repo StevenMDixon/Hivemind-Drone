@@ -59,7 +59,6 @@ class MPVPlayer:
     def handle_rating(self, rating):
         if(rating != "" and rating is not None):
             relative_path = f"./resources/rating_overlays/png/{rating.replace('_', '-')} icon.png"
-            print(relative_path)
             overlay_data = self.get_overlay_data(relative_path)
             self.player.command("overlay_add", self.rating_id, 100, 50,  overlay_data.pixel_data, 0, "bgra", overlay_data.width, overlay_data.height, overlay_data.stride)
             self.rating_display = True
@@ -101,8 +100,8 @@ class MPVPlayer:
 
     def load_schedule(self, schedule_data):
         currentTime = datetime.now()
-        #daily_start_time = datetime.now().replace(hour=self.start_time.hour, minute=self.start_time.minute, second=self.start_time.second)
-        daily_start_time = datetime.now()
+        daily_start_time = datetime.now().replace(hour=self.start_time.hour, minute=self.start_time.minute, second=self.start_time.second)
+        # daily_start_time = datetime.now()
         ff_time = (currentTime - daily_start_time).total_seconds()
 
         print(f"currentTime: {currentTime}")
@@ -126,10 +125,10 @@ class MPVPlayer:
             ff_time = 0
             files_loaded += 1
 
-        schedule_duration = 0;
+        schedule_duration = 0
         for item in schedule_data:
-            startTime = item.get('startTime') /1000 if item.get('startTime') else 0
-            endTime = item.get('stopTime') / 1000 if item.get('stopTime') else 0
+            startTime = item.get('StartTime') /1000 if item.get('StartTime') else 0
+            endTime = item.get('StopTime') / 1000 if item.get('StopTime') else 0
 
             duration = endTime - startTime
             schedule_duration += duration
@@ -146,10 +145,11 @@ class MPVPlayer:
 
             try:
                 se_command = f"start={startTime},length={endTime - startTime}"
+                print(se_command)
 
-                if 'http' in item.get('path', ''):
+                if 'http' in item.get('Path', ''):
                     se_command = f"demuxer-readahead-secs=0,demuxer-lavf-o=live_start_index=0,length={endTime - startTime}" 
-                    print(f"Scheduling item {se_command}");
+                    print(f"Scheduling item {se_command} {self.process_path(item)}");
 
                 self.player.command(
                         "loadfile", 
@@ -181,16 +181,21 @@ class MPVPlayer:
 
     def _create_process(self):
         loudnorm_params = "lavfi=[loudnorm=I=-16:TP=-1.5:LRA=11]"
-        self.process = subprocess.Popen([
-                        "mpv",
-                        "--fullscreen",
-                        "--idle=yes",
-                        f"--input-ipc-server={self.socket}",
-                        f"--af={loudnorm_params}", 
-                        f"--audio-device={self.device_info['audioDevice']}",
-                        f"--screen={self.device_info['screen']}", 
-                        *self.device_info.get('mpvArgs', []),
-                    ])
+
+        params = [
+            "mpv",
+            "--fullscreen",
+            "--idle=yes",
+            f"--input-ipc-server={self.socket}",
+            f"--af={loudnorm_params}", 
+            f"--audio-device={self.device_info['audioDevice']}",
+            # f"--screen={self.device_info['screen']}", 
+            f"--fs-screen-name={self.device_info['fsScreenName']}"
+        ]
+
+        params.extend(self.device_info.get('mpvArgs', []))
+
+        self.process = subprocess.Popen(params)
 
         # On Windows python_mpv_jsonipc retries opening the named pipe itself;
         # on Linux it connects once, so wait for mpv to create the IPC socket.
@@ -235,9 +240,12 @@ class MPVPlayer:
 
 
     def process_path(self, item):
-        if 'http' in item.get('path', ''):
-            return item.get('path')
-        return os.path.join(self.mounted_path, item.get('path').lstrip('/')) if item.get('path') else None
+        item_path = item.get('Path')
+        
+        if 'http' in item_path:
+            return item_path
+        joined_path = os.path.join(self.mounted_path, item_path.lstrip('/'))
+        return joined_path if item_path else None
 
     class OverlayData:
         def __init__(self, pixel_data, width, height, stride):
