@@ -189,8 +189,7 @@ class MPVPlayer:
             f"--input-ipc-server={self.socket}",
             f"--af={loudnorm_params}", 
             f"--audio-device={self.device_info['audioDevice']}",
-            # f"--screen={self.device_info['screen']}", 
-            f"--fs-screen-name={self.device_info['fsScreenName']}"
+            f"--screen={self.device_info['screen']}"
         ]
 
         params.extend(self.device_info.get('mpvArgs', []))
@@ -277,7 +276,7 @@ class MPVPlayer:
         # Each row is width * 4 bytes for BGRA.
         stride = width * 4
 
-        overlay_file = Path("overlay.raw")
+        overlay_file = Path(f"overlay-{self.device_info['stationNumber']}.raw")
         overlay_file.write_bytes(pixel_data)
 
         return self.OverlayData(

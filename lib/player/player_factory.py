@@ -10,7 +10,6 @@ load_dotenv()
 MOUNTED_PATH = os.getenv("MountedPath")
 STANDBY_URL = os.getenv("StandbyUrl")
 
-
 def create_players_async(scheduleData):
         with ThreadPoolExecutor(max_workers=len(scheduleData)) as executor:
             return list(executor.map(lambda item: create_player(item), scheduleData))
@@ -36,6 +35,5 @@ def create_player(item):
     if os.path.exists(mpv_socket):
         os.remove(mpv_socket)
 
-    print(MOUNTED_PATH)
     currentDevice = device
     return MPVPlayer(mpv_socket=mpv_socket, device_info=currentDevice, schedule_data=scheduleItems, mountPath=MOUNTED_PATH, startTime=startTime, StandbyUrl=STANDBY_URL)

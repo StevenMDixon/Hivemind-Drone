@@ -63,8 +63,7 @@ class PlayerManager:
                     'device': device,
                     'schedule': None
                 })
-        return mapping
-        
+        return mapping  
 
     def run(self):
         while not self.stop_event.is_set():
@@ -182,10 +181,6 @@ class PlayerManager:
             "hostName": hostname
         }
 
-        print("Registering drone with hostname:", hostname)
-        print("Payload for registration:", payload)
-        print("Target URL for registration:", TARGET_URL + REGISTER_PATH)
-
         try:
             response = requests.post(TARGET_URL + REGISTER_PATH, json=payload)
             if response.status_code == 200:
@@ -193,7 +188,6 @@ class PlayerManager:
         except requests.RequestException as e:
             print("Error registering drone:", e)
         return {'id': None}
-
     
     def players_to_update(self, newSchedule):
         results = []
